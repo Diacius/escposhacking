@@ -53,12 +53,12 @@ def main():
             handle.write(imgbytes)
         # Find the number of lines by dividing the number of bytes by the bytes per line value
         number_of_lines = len(imgbytes) // BYTES_PER_DOT_LINE
-        for i in range(number_of_lines):
-            with open('testoutput.bin', 'wb') as handle:
-                handle.write(imgbytes[i:BYTES_PER_DOT_LINE+i])
-            usb._raw(b'\x1B\x2A\x08\x80\x01' + b'\xFE'*24)
+        with open('testoutput.bin', 'wb') as handle:
+            for i in range(number_of_lines):
+                # TODO: maybe split somehow here?!?!?!
+                handle.write((b'\x1B\x2A\x08\x80\x01' + imgbytes[i:BYTES_PER_DOT_LINE+i]))
+            handle.close()
         usb.text('\n\n\n\n')
-        usb._raw(SET_LED_MODE + b'\x00')
     finally:
         # Ensure the LED is not in test mode
         pass
