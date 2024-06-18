@@ -21,7 +21,12 @@ usb.text('Testing\n')
 usb.text('£€\n') # € prints as ñ, TODO: Add custom codepage so it's corrrect
 # Images currently borked
 #usb.image(img_source='testimg.bmp',impl='bitImageColumn',center=True)
+# Modified image output test
+with open('output.bin', 'rb') as f:
+    usb._raw(f.read())
 # 0x32 is DEC: 50 or 2.5 lines (1 line is 20/0x14)
 usb._raw(pipsta_constants.printFeedExtra(b'\x32'))
 # Exit spooling, which should print the full output.
+
+usb._raw(pipsta_constants.ESC + b"*" + b"\x08" + bytes(48))
 usb._raw(pipsta_constants.EXIT_SPOOLING)
