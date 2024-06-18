@@ -6,7 +6,7 @@ import math
 from typing import Iterator, Union
 from PIL import Image, ImageOps, ImageFilter
 import struct
-import bitarray
+from bitarray import bitarray
 import os
 from time import sleep
 USB_vendor = 0x0483
@@ -17,34 +17,6 @@ SET_LED_MODE = b'\x1bX\x2d'
 FEED_PAST_CUTTER = b'\n' * 5
 SELECT_SDL_GRAPHICS = b'\x1b*\x08'
 USB_BUSY = 66
-def convert_image(image):
-    #imagebits = bitarray.bitarray(image.getdata(), endian='big')
-    #imagebits.invert()
-    return image.getdata()
-def load_image(filename):
-    '''Loads an image from the named png file.  Note that the extension must
-    be omitted from the parameter.
-    '''
-    return Image.open(filename).convert('1')
-def print_image(ep_out, data):
-    '''Reads the data and sends it a dot line at once to the printer
-    '''
-    try:
-        ep_out._raw(SET_FONT_MODE_3)
-        cmd = struct.pack('3s2B', SELECT_SDL_GRAPHICS,(DOTS_PER_LINE / 8) & 0xFF,(DOTS_PER_LINE / 8) / 256)
-        # Arbitrary command length, set to minimum acceptable 24x8 dots this figure
-        # should give mm of print
-        lines = len(data)//BYTES_PER_DOT_LINE
-        start = 0
-        for line in range (0, lines):    
-            start = line * BYTES_PER_DOT_LINE
-            # intentionally +1 for slice operation below
-            end = start + BYTES_PER_DOT_LINE
-            # ...to end (end not included)            
-            ep_out._raw(b''.join([cmd, data[start:end]]))
-    finally:
-        #ep_out.write(RESTORE_DARKNESS)
-        pass
 def main():        
     '''This is the main loop where arguments are parsed, connections
      are established, images are processed and the result is
@@ -56,26 +28,40 @@ def main():
         im = Image.open('ghastly.png') # Open colour image
         im = im.resize(size=(384,im.height),resample=Image.Resampling.LANCZOS)
         im = im.convert("1")
-        print(list(im.getdata()))
+        print(im.width)
+        print(im.height)
+        pixellist = list(im.getdata())
         im.save('test.bmp')
         usb.hw('INIT')
         usb._raw(SET_FONT_MODE_3)
-        usb._raw(constants.ENTER_SPOOLING)
         # From http://stackoverflow.com/questions/273946/
         #/how-do-i-resize-an-image-using-pil-and-maintain-its-aspect-ratio
         DOTS_PER_LINE = 384
-        BYTES_PER_DOT_LINE = 48 #(48)
+        BYTES_PER_DOT_LINE = DOTS_PER_LINE//8 #(48)
         # ESC, *, 8(for dots), n1,n2,
         # first bit most signif
         # The number of dot columns is given by (n1+ 256*n2)
-        for i in range(8192):
-            usb._raw(ESC+b'*\x08\x40\x01' + b'\x0E'*24)
-            usb._raw(ESC+b'*\x08\x40\x01' + b'\x02'*24)
-        usb._raw(constants.EXIT_SPOOLING)
+        DOTHEADER = ESC+b'*\x08\x80\x01'
+        pixelarray1bit = bitarray(endian='big')
+        for i in pixellist:
+            if i == 255:
+                pixelarray1bit.append(1)
+            if i == 0:
+                pixelarray1bit.append(0)
+        imgbytes = pixelarray1bit.tobytes()
+        with open('testoutput.bin', 'wb') as handle:
+            handle.write(imgbytes)
+        # Find the number of lines by dividing the number of bytes by the bytes per line value
+        number_of_lines = len(imgbytes) // BYTES_PER_DOT_LINE
+        for i in range(number_of_lines):
+            with open('testoutput.bin', 'wb') as handle:
+                handle.write(imgbytes[i:BYTES_PER_DOT_LINE+i])
+            usb._raw(b'\x1B\x2A\x08\x80\x01' + b'\xFE'*24)
         usb.text('\n\n\n\n')
+        usb._raw(SET_LED_MODE + b'\x00')
     finally:
         # Ensure the LED is not in test mode
-        usb._raw(SET_LED_MODE + b'\x00')
+        pass
         
 if __name__ == '__main__':
     main()
